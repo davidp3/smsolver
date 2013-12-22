@@ -1,10 +1,23 @@
 package com.deepdownstudios.smsolver;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Scanner;
 
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.UnmarshalException;
+import javax.xml.bind.Unmarshaller;
+
+import com.deepdownstudios.scxml.jaxb.ScxmlScxmlType;
 import com.deepdownstudios.smsolver.History.HistoryException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
@@ -22,6 +35,9 @@ public class Command {
 	private static final SingleCommand REDO_CMD = new SingleCommand(REPLCommand.REDO, ImmutableList.<AbstractPrologTerm>of());
 	private static final SingleCommand SAVE_CMD = new SingleCommand(REPLCommand.SAVE, ImmutableList.<AbstractPrologTerm>of());
 	private static final SingleCommand LOAD_CMD = new SingleCommand(REPLCommand.LOAD, ImmutableList.<AbstractPrologTerm>of());
+
+	private static final String SCXML_TAG = "scxml";
+	private static final String LPSCR_BLOCK_DELIMETER = "---";
 	
 	private List<SingleCommand> subcommands;
 
@@ -150,12 +166,14 @@ public class Command {
 	}
 
 	private State load(History history, SingleCommand singleCommand) throws CommandException {
-		String filename;
+		String filename, 
+			requestedName;		// For error messages
 		File file;
 		List<AbstractPrologTerm> parameters = singleCommand.getParameters();
 		boolean asScxml;		// either scxml or lpscr
 		if(parameters.isEmpty())	{
 			filename = history.getCurrentState().getLPSCRName();
+			requestedName = Files.getNameWithoutExtension(filename);
 			asScxml = false;
 			file = new File(filename);
 			if(!file.isFile())	{
@@ -175,15 +193,89 @@ public class Command {
 			else
 				asScxml = State.SCXML_SUFFIX.equals(suffix);
 			file = new File(filename);
+			requestedName = filename;
 		}
 		else
 			throw new CommandException("Syntax error: '" + singleCommand.toString() + "'.  Format is load. or load(filename).");
 		
 		if(!file.isFile())
-			throw new CommandException("File '" + filename + "' not found.");
+			throw new CommandException("File '" + requestedName + "' not found.");
+
+		if(asScxml)
+			return loadScxml(file);
 		
-		assert false;		// TODO:
-		return null;
+		return loadLpscr(file);
+	}
+
+	private State loadLpscr(File file) throws CommandException {
+		// Open file
+		Scanner scanner;
+		try {
+			scanner = new Scanner(file);
+		} catch (FileNotFoundException e) {
+			throw new CommandException("File '" + file.getAbsolutePath() + "' was not found.");
+		}
+		
+		try	{
+			// First line is: 
+			// scxml "filename"
+			// (the quotation marks are present)
+			String scxmlTag = scanner.next();
+			if(!SCXML_TAG.equals(scxmlTag))
+				throw new CommandException("scxml tag missing from file '" + file.getPath() + "'.");
+			String scxmlFilename = scanner.nextLine();		// presumably, this skips the word we already read
+			// Filename is everything between single-quotes
+			scxmlFilename = scxmlFilename.substring(scxmlFilename.indexOf('\''), scxmlFilename.lastIndexOf('\''));
+			State newState = loadScxml(new File(scxmlFilename));
+			// The rest of the lines are lpscr command blocks, broken into groups, each 
+			// followed by lines that are just three dashes (ie '---'), including the final block of commands.
+			// Issue each block as a Command to build a history
+			History fakeHistory = new History(ImmutableList.<State>of(newState), 0);
+			assert newState != null;
+			while(scanner.hasNext())	{
+				StringBuffer commandStrBuf = new StringBuffer();
+				boolean done = false;
+				while(!done)	{
+					String nextLine = scanner.nextLine();
+					if(nextLine.equals(LPSCR_BLOCK_DELIMETER))
+						break;		// read entire block of commands
+					commandStrBuf.append(nextLine);
+				}
+				String commandStr = commandStrBuf.toString();
+				Commands commands = Commands.parse(commandStr);
+				CommandResult result = commands.execute(fakeHistory);
+				fakeHistory = result.getHistory();
+			}
+			return fakeHistory.getCurrentState();
+		} finally {
+			scanner.close();
+		}
+	}
+
+	private State loadScxml(File file) throws CommandException {
+		JAXBContext context;
+		try {
+			context = JAXBContext.newInstance("com.deepdownstudios.scxml.jaxb");
+		} catch (JAXBException e) {
+			throw new CommandException("Internal error: JAXB was unable to initialize namespace 'com.deepdownstudios.scxml.jaxb'", e);
+		}
+		
+		Unmarshaller unmarshaller;
+		try {
+			unmarshaller = context.createUnmarshaller();
+		} catch (JAXBException e) {
+			throw new CommandException("Internal error: Could not create SCXML JAXB unmarshaller.", e);
+		}
+		
+		ScxmlScxmlType scxml;
+		try {
+			scxml = (ScxmlScxmlType)unmarshaller.unmarshal(file);
+		} catch (UnmarshalException e) {
+			throw new CommandException("'" + file.getAbsolutePath() + "' is not a valid SCXML file.", e);
+		} catch (JAXBException e) {
+			throw new CommandException("Internal error: Could not create SCXML JAXB unmarshaller.", e);
+		}
+		return new State(this, file.getPath(), "Loaded SCXML File '" + file.getAbsolutePath() + "'", scxml);
 	}
 
 	private String save(History history, SingleCommand singleCommand) throws CommandException {
