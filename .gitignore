@@ -12,5 +12,5 @@ target
 .project
 .classpath
 bin
-
+.xjcStaleFlag
 /doc

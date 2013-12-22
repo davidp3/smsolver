@@ -8,6 +8,8 @@ public class State {
 	private Command command;
 	private String filenameBase;		///< Suffix-less filename
 	private String commandMessage;
+	public static final Object LPSCR_SUFFIX = "lpscr";
+	public static final String SCXML_SUFFIX = "scxml";
 	
 	public State(Command command, String filename, String commandMessage)	{
 		this.filenameBase = Files.getNameWithoutExtension(filename);
@@ -24,7 +26,7 @@ public class State {
 	}
 
 	public String getSCXMLName() {
-		return filenameBase + ".scxml";
+		return filenameBase + '.' + SCXML_SUFFIX;
 	}
 
 	/**
@@ -33,5 +35,9 @@ public class State {
 	 */
 	public String getCommandMessage() {
 		return commandMessage;
+	}
+
+	public String getLPSCRName() {
+		return filenameBase + '.' + LPSCR_SUFFIX;
 	}
 }

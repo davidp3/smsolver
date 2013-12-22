@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<bindings version="2.0" xmlns="http://java.sun.com/xml/ns/jaxb"
+   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+   >
+   <bindings schemaLocation="../xsd/scxml-module-core.xsd" version="1.0">
+        <!-- Customise the package name -->
+<!--        <schemaBindings>
+            <package name="com.deepdownstudios.scxml.jaxb"/>
+        </schemaBindings>
+-->
+        <!-- rename elements -->
+        <bindings node="//xsd:group[@name='scxml.if.elseif.mix']/xsd:sequence">
+            <bindings node=".//xsd:group[@ref='scxml.core.executablecontent']">
+                <property name="scxml.core.executablecontent.if.elseif"/>
+            </bindings>
+        </bindings>
+        
+        <bindings node="//xsd:group[@name='scxml.if.else.mix']/xsd:sequence">
+            <bindings node=".//xsd:group[@ref='scxml.core.executablecontent']">
+                <property name="scxml.core.executablecontent.if.else"/>
+            </bindings>
+        </bindings>
+        
+        <bindings node="//xsd:group[@name='scxml.if.content']/xsd:sequence">
+            <bindings node=".//xsd:group[@ref='scxml.core.executablecontent']">
+                <property name="scxml.core.executablecontent.if"/>
+            </bindings>
+        </bindings>
+    </bindings>
+</bindings>
+
