@@ -6,20 +6,37 @@ public class CommandResult {
 	private History history;
 	private String message;
 
+	/**
+	 * Build a command result from the history using the history's current state's user-friendly message.
+	 * @param history		The history that resulted from running the command.
+	 * @throws CommandException		Internal bug.  Should be impossible.
+	 */
 	public CommandResult(History history) throws CommandException {
 		this(history, getMessageFromHistory(history));
 	}
 	
+	/**
+	 * Build a command result from the history.
+	 * @param history		The history that resulted from running the command.
+	 * @param message		A user-friendly message that describes the result of running the command.
+	 */
 	public CommandResult(History history, String message) {
 		assert history != null && message != null;
 		this.history = history;
 		this.message = message;
 	}
 
+	/**
+	 * The history that resulted from running the command.
+	 */
 	public History getHistory() {
 		return history;
 	}
 
+	/**
+	 * The user-friendly message that describes the result of running the operation.
+	 * @return
+	 */
 	public String getMessage() {
 		return message;
 	}

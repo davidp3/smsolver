@@ -1,42 +1,32 @@
 package com.deepdownstudios.smsolver;
 
-import java.util.List;
-
-import com.deepdownstudios.scxml.jaxb.ScxmlScxmlType;
-import com.google.common.io.Files;
 
 public class State {
 	private Command command;
-	private String filenameBase;		///< Suffix-less filename
 	private String commandMessage;
-	public static final Object LPSCR_SUFFIX = "lpscr";
-	public static final String SCXML_SUFFIX = "scxml";
-	private ScxmlScxmlType scxml;
+	private ScxmlFile scxmlFile;
 	
 	/**
-	 * Create a State with an empty SCXML file.
+	 * Create a State with an empty statechart.
 	 * @param command		Command that created the state.  Currently always 'new(filename).'
-	 * @param filename		Name of SCXML file to create/overwrite.
+	 * @param filename		Name of file to create/overwrite.
 	 * @param commandMessage	Result message for user from running command.
 	 */
-	public State(Command command, String filename, String commandMessage)	{
-		this(command, filename, commandMessage, getNewScxmlDocument(Files.getNameWithoutExtension(filename)));
+	public State(Command command, String commandMessage, String filename)	{
+		this(command, commandMessage, new ScxmlFile(filename));
 	}
 	
-	public State(Command command, String filename, String commandMessage, ScxmlScxmlType scxml)	{
-		assert filename != null && command != null && commandMessage != null && scxml != null;
-		this.filenameBase = Files.getNameWithoutExtension(filename);
+	/**
+	 * @param command
+	 * @param filename		Name of the file that is associated with this scxml document.  Must include either .scxml or .lpscr suffix.
+	 * @param commandMessage
+	 * @param scxml
+	 */
+	public State(Command command, String commandMessage, ScxmlFile scxmlFile)	{
+		assert command != null && commandMessage != null && scxmlFile != null;
 		this.command = command;
 		this.commandMessage = commandMessage;
-		this.scxml = scxml;
-	}
-	
-	private static ScxmlScxmlType getNewScxmlDocument(String name)	{
-		ScxmlScxmlType ret = new ScxmlScxmlType();
-		ret.setName(name);
-		// TODO: Technically should have at least one state, parallel or final child but I wont
-		// tell if JAXB2 wont.
-		return ret;
+		this.scxmlFile = scxmlFile;
 	}
 	
 	/**
@@ -47,19 +37,14 @@ public class State {
 		return command;
 	}
 
-	public String getSCXMLName() {
-		return filenameBase + '.' + SCXML_SUFFIX;
-	}
-
 	/**
-	 * Return message, displayed to user, about the result of executing the State's command.
-	 * @return The text message for the user
+	 * The message, displayed to user, about the result of executing the State's command.
 	 */
 	public String getCommandMessage() {
 		return commandMessage;
 	}
 
-	public String getLPSCRName() {
-		return filenameBase + '.' + LPSCR_SUFFIX;
+	public ScxmlFile getScxmlFile() {
+		return scxmlFile;
 	}
 }

@@ -34,6 +34,16 @@
     	<artifactId>jaxb-api</artifactId>
     	<version>2.2.11</version>
     </dependency>
+    <dependency>
+    	<groupId>com.deepdownstudios</groupId>
+    	<artifactId>smbridge</artifactId>
+    	<version>1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+    	<groupId>com.beust</groupId>
+    	<artifactId>jcommander</artifactId>
+    	<version>1.32</version>
+    </dependency>
   </dependencies>
     <build>
         <plugins>
@@ -43,9 +53,9 @@
                 <version>1.2.1</version>
                 <configuration>
                     <mainClass>com.deepdownstudios.smsolver.SMSolver</mainClass>
-										<!--                    <arguments>
-                        <argument>argument1</argument>
-												</arguments> -->
+										<arguments>
+                        <argument>-w</argument>
+										</arguments> 
                 </configuration>
             </plugin>
             <plugin>

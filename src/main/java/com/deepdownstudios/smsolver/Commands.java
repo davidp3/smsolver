@@ -19,6 +19,11 @@ public class Commands {
 
 	private Commands() {	}		// noop.  subcommands is empty
 
+	/**
+	 * Build subcommands from code.
+	 * @param commandStr	A period-separated list of LP/PROLOG-style commands.
+	 * @throws CommandException
+	 */
 	private Commands(String commandStr) throws CommandException {
 		assert commandStr.trim().length() > 0;
 		
@@ -78,7 +83,7 @@ public class Commands {
 	 * @return				The Prolog term or NULL if no more exist in the string
 	 * @throws CommandException		A syntax error was found (or docs say an I/O error but I believe thats impossible as there is no I/O)
 	 */
-	private AbstractPrologTerm nextTerm(PrologParser parser, String commandStr) throws CommandException {
+	private static AbstractPrologTerm nextTerm(PrologParser parser, String commandStr) throws CommandException {
 		try {
 			if(commandStr != null)
 				return parser.nextSentence(commandStr);
@@ -106,7 +111,7 @@ public class Commands {
 
 	/**
 	 * Parse the string into a command object.
-	 * @param commandStr	The PROLOG-formatted command list
+	 * @param commandStr	The LP/PROLOG-formatted command statement list.  Commands end in periods.  '%' Comments are permitted.
 	 * @return				The command object or null if commandStr was 'empty' (ie nothing but whitespace)
 	 * @throws CommandException		If the string could not be parsed
 	 */
@@ -116,6 +121,13 @@ public class Commands {
 		return new Commands(commandStr);
 	}
 
+	/**
+	 * Execute this command on the current state in history.  Returns the result, which includes the new history that
+	 * results from running the command.
+	 * @param history		The history to run the command on.
+	 * @return				
+	 * @throws CommandException
+	 */
 	public CommandResult execute(History history) throws CommandException {
 		if(subcommands.isEmpty())
 			return new CommandResult(history, "");
