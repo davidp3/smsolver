@@ -131,7 +131,7 @@ state(Id) :- deep(Id).
 
 % edge(SrcStateId, DestStateId).
 :- edge(Id, _, _, _, _), not state(Id).
-:- edge(_, Id, _, _, _), not state(Id).
+:- edge(_, Id, _, _, _), not state(Id), Id != no_target.
 
 % parent(ParentStateId, StateId).
 :- parent(Id, A), parent(Y, A), Id != Y.			% constr: only one parent
@@ -204,7 +204,7 @@ delete(parent(OldParentState, State)) :- change(parent(ParentState, State)),
 % deleted states delete adjacent edges and properties as well.  Note that changed states are NOT included
 % since the state still exists (so not state() will still be false).
 delete(edge(DeletedState,X2,X3,X4,X5)) :- input(edge(DeletedState,X2,X3,X4,X5)), not state(DeletedState).
-delete(edge(X1,DeletedState,X3,X4,X5)) :- input(edge(X1,DeletedState,X3,X4,X5)), not state(DeletedState).
+delete(edge(X1,DeletedState,X3,X4,X5)) :- input(edge(X1,DeletedState,X3,X4,X5)), not state(DeletedState), DeletedState != no_target.
 delete(prop(DeletedState,X2,X3)) :- input(prop(DeletedState,X2,X3)), not state(DeletedState).
 
 % These properties hold for initial states and deep history states (call them s#_) where # is a number.
@@ -269,6 +269,9 @@ s2_max_common_ancestor(Anc, Declarer) :- s2_(State0, Declarer), s2_(State1, Decl
 -edge2(X1,X2) :- state(X1), state(X2), not edge(X1,X2,_,_,_).
 edge(HistState, StartState, no_cond, no_event, no_action) :- not -edge2(HistState, StartState), history(HistState), 
 				parent(Parent, HistState), prop(Parent, initial, StartState).
+
+% History-state transitions must have a target.
+:- history(HistState), edge(HistState,no_target,_,_,_).
 
 % Shallow history states must target exactly one immediate child of their parent.
 :- shallow(S), edge(S,X,_,_,_), edge(S,Y,_,_,_), X != Y.

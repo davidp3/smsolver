@@ -71,7 +71,7 @@ public class Command {
 					builder.append(parameter.getText());
 					isFirst = false;
 				}
-				builder.append(");");
+				builder.append(")");
 			}
 			return builder.append('.').toString();
 		}

@@ -129,6 +129,8 @@ public class SMSolver implements Endpoint
 				smsolver.executeAndRespond(line);
 			} catch (CommandException e) {
 				consoleWriter.println("ERROR: Command Failed.  " + e.getMessage());
+				if(e.getCause().getMessage() != null)
+					consoleWriter.println("\t" + e.getCause().getMessage());
 			}
 		}
 		

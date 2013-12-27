@@ -2,6 +2,7 @@ package com.deepdownstudios.smsolver;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -23,6 +24,7 @@ import com.igormaznitsa.prologparser.terms.PrologStructure;
 public class ClingoSolver {
 	private static final String CLINGO_UNSATISFIABLE = "UNSATISFIABLE";
 	private static final String CLINGO_SATISFIABLE = "SATISFIABLE";
+	private static final String CLINGO_UNKNOWN = "UNKNOWN";
 	private static final String ENGINE_RESOURCE_NAME = "/engine.lp";
 	private static final String TOP_STATE_STR = "top_state";
 	private static final String INITIAL_STR = "initial";
@@ -48,6 +50,10 @@ public class ClingoSolver {
 	private static final String SCRIPT_STR = "script";
 	private static final String DEEP_STR = "deep";
 	private static final String SHALLOW_STR = "shallow";
+	private static final String NO_EVENTS_STR = "no_event";
+	private static final String NO_TARGET_STR = "no_target";
+	private static final String NO_ACTION_STR = "no_action";
+	private static final String EDGE_STR = "edge";
 	
 	private static final PrologAtom PROP_ATOM = new PrologAtom(PROP_STR);
 	private static final PrologAtom INITIAL_ATOM = new PrologAtom(INITIAL_STR);
@@ -72,6 +78,10 @@ public class ClingoSolver {
 	private static final PrologAtom SCRIPT_ATOM = new PrologAtom(SCRIPT_STR);
 	private static final PrologAtom DEEP_ATOM = new PrologAtom(DEEP_STR);
 	private static final PrologAtom SHALLOW_ATOM = new PrologAtom(SHALLOW_STR);
+	private static final PrologAtom NO_EVENTS_ATOM = new PrologAtom(NO_EVENTS_STR);
+	private static final PrologAtom NO_TARGET_ATOM = new PrologAtom(NO_TARGET_STR);
+	private static final PrologAtom NO_ACTION_ATOM = new PrologAtom(NO_ACTION_STR);
+	private static final PrologAtom EDGE_ATOM = new PrologAtom(EDGE_STR);
 	
 	private static String engineCode = getLpscrEngineCode();
 	
@@ -153,27 +163,30 @@ public class ClingoSolver {
 			String line = clingoOutput.readLine();
 			String ret = null;
 			// Clingo output should include either SATISFIABLE or UNSATISFIABLE
-			boolean gotSatisfiable=false, gotUnsatisfiable=false;
+			boolean gotSatisfiable=false, gotUnsatisfiable=false, gotUnknown=false;
 			while(line != null)	{
 				if(line.equals(CLINGO_SATISFIABLE))
 					gotSatisfiable = true;
 				if(line.equals(CLINGO_UNSATISFIABLE))
 					gotUnsatisfiable = true;
-				if(line.isEmpty() || Character.isUpperCase(line.charAt(0)))
-					continue;
-				ret = line;
-				// Results are all on one line so this is really superfluous but I'm being diligent.
+				if(line.equals(CLINGO_UNKNOWN))
+					gotUnknown = true;
+				if(!line.isEmpty() && !Character.isUpperCase(line.charAt(0)))
+					ret = line;
 				line = clingoOutput.readLine();
 			}
 			clingoOutput.close();
-			if(gotSatisfiable == gotUnsatisfiable)
+			if(!gotSatisfiable && !gotUnsatisfiable && !gotUnknown)
 				throw new CommandException("BUG: Clingo response was not understood.");
+			if(gotUnknown)
+				throw new CommandException("BUG: Clingo was interrupted.");
 			if(gotUnsatisfiable)
 				throw new CommandException("The state machine commands were not satisfiable.");
 			assert ret != null;
 			return ret;
 		} catch (IOException e) {
-			throw new CommandException("I/O error while communicating with clingo.");
+			e.printStackTrace();
+			throw new CommandException("I/O error while communicating with clingo.", e);
 		} finally {
 			if(clingoInput != null)	{
 				try {
@@ -343,15 +356,54 @@ public class ClingoSolver {
 		}
 	}
 
-	private static void addTransition(List<AbstractPrologTerm> ret, PrologAtom srcState, ScxmlTransitionType transition) {
-		AbstractPrologTerm cond, events;
-		// probably lump events in with cond (say, as 'match(event)' condition).
-		// maybe not tho because it would be hard to pull back out and there is mild reason to believe things
-		// will be better with them separate
+	private static void addTransition(List<AbstractPrologTerm> ret, PrologAtom srcState, ScxmlTransitionType transition) throws CommandException {
+		AbstractPrologTerm events = events(transition.getEvent());
+		AbstractPrologTerm cond = condition(transition.getCond());
+		AbstractPrologTerm target;
+		List<Object> targets = transition.getTarget();
+		if(targets != null && targets.size() > 1)	{
+			// TODO:
+			throw new CommandException("Fork-transitions are not yet supported: " + transition.toString());
+		}
+		if(targets != null)	{
+			String targetId = getId(targets.get(0));
+			target = new PrologAtom(targetId);
+		} else {
+			target = NO_TARGET_ATOM;
+		}
 		
 		// Executable content defines actions
-		if(transition.getScxmlCoreExecutablecontent() != null)
-			
+		AbstractPrologTerm action;
+		if(transition.getScxmlCoreExecutablecontent() != null)	{
+			action = executableContent(transition.getScxmlCoreExecutablecontent());
+		} else {
+			action = NO_ACTION_ATOM;
+		}
+		ret.add(new PrologStructure(EDGE_ATOM, new AbstractPrologTerm[] { srcState, target, cond, events, target } ));
+	}
+
+	private static String getId(Object elt) throws CommandException {
+		if(elt instanceof ScxmlStateType)
+			return ((ScxmlStateType)elt).getId();
+		if(elt instanceof ScxmlParallelType)
+			return ((ScxmlParallelType)elt).getId();
+		if(elt instanceof ScxmlHistoryType)
+			return ((ScxmlHistoryType)elt).getId();
+		if(elt instanceof ScxmlFinalType)
+			return ((ScxmlFinalType)elt).getId();
+		throw new CommandException("ID of element type could not be interpreted: " + elt.toString());
+	}
+
+	private static AbstractPrologTerm events(String event) {
+		if(event == null)
+			return NO_EVENTS_ATOM;
+		return new PrologAtom(event);
+	}
+
+	private static AbstractPrologTerm condition(String cond) {
+		if(cond == null)
+			return NO_COND_ATOM;
+		return new PrologAtom(cond);
 	}
 
 	private static void addParallelState(List<AbstractPrologTerm> ret, String parentStr, ScxmlParallelType state) throws CommandException {
@@ -400,7 +452,7 @@ public class ClingoSolver {
 		}
 	}
 
-	private static void addHistoryState(List<AbstractPrologTerm> ret, String parentStr, ScxmlHistoryType state) {
+	private static void addHistoryState(List<AbstractPrologTerm> ret, String parentStr, ScxmlHistoryType state) throws CommandException {
 		String idStr = state.getId();
 		if(idStr == null)
 			idStr = genId();
@@ -584,6 +636,6 @@ public class ClingoSolver {
 	private static ScxmlScxmlType prologToScxml(String name, List<AbstractPrologTerm> terms) {
 		ScxmlScxmlType scxmlType = new ScxmlScxmlType();
 		scxmlType.setName(name);
-		return null;
+		return scxmlType;
 	}
 }
