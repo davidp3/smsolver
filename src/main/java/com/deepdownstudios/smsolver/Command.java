@@ -9,7 +9,15 @@ import com.igormaznitsa.prologparser.terms.PrologAtom;
 import com.igormaznitsa.prologparser.terms.PrologStructure;
 
 public class Command {
-	public enum REPLCommand { LOAD, SAVE, NEW, CHANGE, SET, TEST, DELETE, UNDO, REDO };
+	public enum REPLCommand { 
+		LOAD, SAVE, NEW, CHANGE, SET, TEST, DELETE, UNDO, REDO;
+		public static REPLCommand valueOfIgnoreCase(String str)	{
+			return valueOf(str.toUpperCase());
+		}
+		public String toString()	{
+			return super.toString().toLowerCase();
+		}
+	};
 	public enum Type { PARENT, SIMPLE, PAR, START, TERMINATE, EDGE, PROP, DEEP, SHALLOW };
 	public static final List<String> keywords = getKeywords();
 
@@ -41,9 +49,9 @@ public class Command {
 		}
 		
 		public static SingleCommand parseCommand(PrologStructure command) throws CommandException {
-			REPLCommand replCommand = REPLCommand.valueOf(command.getFunctor().getText());
+			REPLCommand replCommand = REPLCommand.valueOfIgnoreCase(command.getFunctor().getText());
 			if(replCommand == null)
-				throw new CommandException("Unrecognized command: " + command.getFunctor().getText());
+				throw new CommandException("Unrecognized command: " + command.getFunctor().getText() + "/" + command.getArity());
 			List<AbstractPrologTerm> parameters = new ArrayList<AbstractPrologTerm>();
 			for(int i=0; i<command.getArity(); ++i)	{
 				parameters.add(command.getElement(i));
@@ -96,19 +104,25 @@ public class Command {
 
 	public static Command build(PrologAtom atom) throws CommandException {
         // The following are the valid atoms: undo.  redo.  save.  load.
-		if(REPLCommand.UNDO.toString().equals(atom))	{
+		REPLCommand replCommand;
+		try	{
+			replCommand = REPLCommand.valueOfIgnoreCase(atom.getText());
+		} catch(IllegalArgumentException e)	{
+	    	throw new CommandException("Unrecognized command: " + atom.getText() + "/0");
+		}
+
+		switch(replCommand)		{
+		case UNDO:
 			return new Command(ImmutableList.<Command.SingleCommand>of(UNDO_CMD));
-		}
-		if(REPLCommand.REDO.toString().equals(atom))	{
+		case REDO:
 			return new Command(ImmutableList.<Command.SingleCommand>of(REDO_CMD));
-		}
-		if(REPLCommand.SAVE.toString().equals(atom))	{
+		case SAVE:
 			return new Command(ImmutableList.<Command.SingleCommand>of(SAVE_CMD));
-		}
-		if(REPLCommand.LOAD.toString().equals(atom))	{
+		case LOAD:
 			return new Command(ImmutableList.<Command.SingleCommand>of(LOAD_CMD));
+		default:
+			throw new CommandException("Unrecognized command: " + atom.getText() + "/0");
 		}
-    	throw new CommandException("Unrecognized command: " + atom.getText());
 	}
 
 	public CommandResult execute(History history) throws CommandException {
@@ -117,13 +131,13 @@ public class Command {
 			case UNDO:	{
 				History newHistory = history.undo();
 				return new CommandResult(newHistory, 
-						"Undo:\n" + newHistory.getCurrentState().getCommand().toString() + "\n\t" +
+						"Undoing: " + history.getCurrentState().getCommand().toString() + "\n\t" +
 								newHistory.getCurrentState().getCommandMessage());
 			}
 			case REDO:	{
-				History newHistory = history.undo();
+				History newHistory = history.redo();
 				return new CommandResult(newHistory, 
-						"Redo:\n" + newHistory.getCurrentState().getCommand().toString() + "\n\t" + 
+						"Redoing: " + newHistory.getCurrentState().getCommand().toString() + "\n\t" + 
 								newHistory.getCurrentState().getCommandMessage());
 			}
 			case LOAD:	{

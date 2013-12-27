@@ -74,7 +74,7 @@ public class History {
 			return new History(ImmutableList.of(state), 0);
 		}
 
-		List<State> historyStatesSublist = states.subList(0, currentStateIndex);
+		List<State> historyStatesSublist = states.subList(0, currentStateIndex+1);
 		List<State> newHistoryStates = ImmutableList.<State>builder()
 					.addAll(historyStatesSublist).add(state).build();
 		return new History(newHistoryStates, currentStateIndex+1);

@@ -32,6 +32,8 @@ public class SMSocket implements Endpoint {
 				while (true) {
 					try {
 						String line = socketReader.readLine();
+						if(line == null)
+							break;			// EOF.  Comes when the other thread calls shutdownInput()
 						if (!line.equals(BEGIN_TAG))
 							System.err.println("WARNING: Malformed message.  Start tag missing.  Received:\n" + line);
 						else
@@ -68,13 +70,28 @@ public class SMSocket implements Endpoint {
 		socketWriter.flush();
 	}
 
-	public void close() {
-		System.err.println("hi mom");
-		if(thread != null)	{
-			thread.interrupt();
+	public synchronized void close() {
+		// The interrupt should cause socketReader.readLine to throw an Exception but it doesn't.
+		// See http://stackoverflow.com/questions/3595926/how-to-interrupt-bufferedreaders-readline
+		// This answer was the least bad.
+		try {
+			if(socket != null)
+				socket.shutdownInput();
+		} catch (IOException e) {
+			consoleWriter.println("ERROR: Problem closing input on socket: " + e.getMessage());
+			return;
 		}
-
-		// The interrupt is supposed to cause socketReader.readLine to throw an Exception but it doesn't.  
+		try {
+			if(thread != null)	{
+				thread.interrupt();
+				thread.join();
+				thread = null;
+			}
+		} catch (InterruptedException e) {
+			consoleWriter.println("ERROR: Problem closing input on socket: " + e.getMessage());
+			return;
+		}
+		
 		// socketReader.close() then hangs.  Note that the docs conflict on what to do here.  The Socket Javadoc says that
 		// closing the reader or writer closes the whole socket (implying socket.close() any one close() alone is fine).
 		// The JavaSE book, OTOH, suggests that you *need* to close them in reverse-open order, which hangs
@@ -88,37 +105,22 @@ public class SMSocket implements Endpoint {
 				socket.close();
 				consoleWriter.println("Socket to SMBridge closed.");
 			} catch (IOException e) {
-				consoleWriter.println("ERROR: Exception while closing connection to SMBridge: " + e.getMessage() + ".");
+				consoleWriter.println("ERROR: Exception while closing connection to SMBridge: " + e.getMessage());
 			}
 		}
 		socketReader = null;
 		socketWriter = null;
 		socket = null;
-		consoleWriter.flush();
+		if(consoleWriter != null)
+			consoleWriter.flush();
 		consoleWriter = null;
-
-		try {
-			if(thread != null)	{
-				thread.join();
-				thread = null;
-			}
-		} catch (InterruptedException e) {
-			assert(false);		// nonsense
-		}
 	}
 	
-	public SMSocket(String bridgeIP, int bridgePort, PrintWriter consoleWriter)	{
-		try {
-			socket = new Socket(bridgeIP, bridgePort);
-			socketWriter = new PrintWriter(socket.getOutputStream(), true);
-			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			consoleWriter.println("Connected to server: "+bridgeIP+":"+bridgePort);
-			consoleWriter.flush();
-		} catch (UnknownHostException e) {
-			consoleWriter.println("ERROR: Hostname " + bridgeIP + " could not be resolved.");
-		} catch (IOException e)	{
-			consoleWriter.println("ERROR: Failed to establish a connection to the SMBridge.");
-		}
+	public SMSocket(String bridgeIP, int bridgePort, PrintWriter consoleWriter) throws IOException	{
+		socket = new Socket(bridgeIP, bridgePort);
+		socketWriter = new PrintWriter(socket.getOutputStream(), true);
+		socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+		this.consoleWriter = consoleWriter;
 	}
 
 	public void setConnectedEndpoint(Endpoint endpoint) {

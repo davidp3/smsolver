@@ -6,6 +6,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
@@ -19,6 +20,7 @@ import javax.xml.bind.UnmarshalException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
 
+import com.deepdownstudios.scxml.jaxb.ObjectFactory;
 import com.deepdownstudios.scxml.jaxb.ScxmlScxmlType;
 import com.deepdownstudios.smsolver.Command.REPLCommand;
 import com.deepdownstudios.smsolver.Command.SingleCommand;
@@ -185,7 +187,7 @@ public class ScxmlFile {
 			throw new CommandException("Syntax error: '" + singleCommand.toString() + "'.  Format is save. or save(filename).");
 		
 		if(asScxml)
-			saveScxml(history.getCurrentState(), filename);
+			saveScxml(history.getCurrentState().getScxmlFile().getScxml(), filename);
 		else
 			saveLpscr(history, filename);
 		return filename;
@@ -325,7 +327,7 @@ public class ScxmlFile {
 		assert ScxmlFile.LPSCR_SUFFIX.equals(Files.getFileExtension(filename));
 		List<State> states = history.getStates();
 		int currentStateIndex = history.getCurrentStateIndex();
-		states = states.subList(0, currentStateIndex);
+		states = states.subList(0, currentStateIndex+1);
 		int lastDeserializeState = currentStateIndex;
 		Command command = states.get(lastDeserializeState).getCommand();
 		while(!command.isLoad() && !command.isNew())	{
@@ -340,7 +342,7 @@ public class ScxmlFile {
 		PrintWriter writer = new PrintWriter(getFileOutputStream(filename));
 		writer.println(LPSCR_EMBEDDED_SCXML_TAG);
 		try	{	
-			marshaller.marshal(states.get(lastDeserializeState).getScxmlFile().getScxml(), writer);
+			marshaller.marshal(new ObjectFactory().createScxml(states.get(lastDeserializeState).getScxmlFile().getScxml()), writer);
 			writer.println(LPSCR_BLOCK_DELIMETER);
 			for(int itState = lastDeserializeState+1; itState < states.size(); itState++)	{
 				State state = states.get(itState);
@@ -362,12 +364,11 @@ public class ScxmlFile {
 		}
 	}
 
-	private static void saveScxml(State state, String filename) throws CommandException {
+	private static void saveScxml(ScxmlScxmlType scxml, String filename) throws CommandException {
 		Marshaller marshaller = getScxmlMarshaller();
-		ScxmlScxmlType scxml = state.getScxmlFile().getScxml();
 		FileOutputStream fileOutputStream = getFileOutputStream(filename);
 		try	{	
-			marshaller.marshal(scxml, fileOutputStream);
+			marshaller.marshal(new ObjectFactory().createScxml(scxml), fileOutputStream);
 		} catch (MarshalException e) {
 			throw new CommandException("BUG: DOM failed marshalling: '" + e.getMessage() + "'.", e);
 		} catch (JAXBException e) {
@@ -411,5 +412,19 @@ public class ScxmlFile {
 			throw new CommandException("BUG: Marshaller JAXB property error: '" + e1.getMessage() + "'.", e1);
 		}
 		return marshaller;
+	}
+
+	public String getScxmlAsString() throws CommandException {
+		Marshaller marshaller = getScxmlMarshaller();
+		StringWriter ret = new StringWriter();
+		try	{	
+			marshaller.marshal(new ObjectFactory().createScxml(scxml), ret);
+		} catch (MarshalException e) {
+			e.printStackTrace();
+			throw new CommandException("BUG: DOM failed marshalling to string: '" + e.getMessage() + "'.", e);
+		} catch (JAXBException e) {
+			throw new CommandException("BUG: Could not marshal SCXML DOM to string.", e);
+		}
+		return ret.toString();
 	}
 }

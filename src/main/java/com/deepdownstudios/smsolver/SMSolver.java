@@ -1,7 +1,14 @@
 package com.deepdownstudios.smsolver;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.MarshalException;
+import javax.xml.bind.Marshaller;
+import javax.xml.bind.PropertyException;
 
 import jline.console.ConsoleReader;
 import jline.console.completer.FileNameCompleter;
@@ -21,7 +28,8 @@ public class SMSolver implements Endpoint
 	private static int DEFAULT_POSIX_PORT = 9296;
 	private static final String EOL = "\n";
 	private static final String ERROR_TAG = "ERROR";
-	
+	private static final String ENDPOINT_RESPONSE_DELIMETER = "---";
+
 	History history = new History();
 	private Endpoint endpoint = null;
 
@@ -92,15 +100,21 @@ public class SMSolver implements Endpoint
 			smsolver.setConnectedEndpoint(websocket);
 			websocket.setConnectedEndpoint(smsolver);
 			websocket.start();
-			consoleWriter.println( "WebSocket Server started on port: " + websocket.getPort() );
+			consoleWriter.println( "WebSocket Server started at address: " + cliArgs.ipAddr + ":" + cliArgs.port );
 		} else if(cliArgs.useSMBridge)	{
 			if(cliArgs.port == -1)
 				cliArgs.port = DEFAULT_POSIX_PORT;
-			SMSocket smsocket = new SMSocket(cliArgs.ipAddr, cliArgs.port, consoleWriter);
+			SMSocket smsocket;
+			try	{
+				smsocket = new SMSocket(cliArgs.ipAddr, cliArgs.port, consoleWriter);
+			} catch (IOException e) {
+				consoleWriter.println( "Failed to open socket: " + e.getMessage() );
+				throw e;
+			}
 			smsocket.setConnectedEndpoint(smsolver);
 			smsolver.setConnectedEndpoint(smsocket);
 			smsocket.start(); 
-			consoleWriter.println( "SMBridge connected on port: " + cliArgs.port );
+			consoleWriter.println( "SMBridge connected at address: " + cliArgs.ipAddr + ":" + cliArgs.port );
 		}
 
 		String line;
@@ -126,8 +140,24 @@ public class SMSolver implements Endpoint
 
 	private void executeAndRespond(String line) throws CommandException {
 		CommandResult result = execute(line);
-		if (endpoint != null)
-			endpoint.process(result.toString());
+		if (endpoint == null)
+			return;
+		
+		// If there is no valid currentstate then just return the message
+		State currentState;
+		try	{
+			currentState = result.getHistory().getCurrentState();
+		} catch(CommandException e)	{
+			endpoint.process(result.getMessage());
+			return;
+		}
+		
+		StringBuffer message = new StringBuffer(result.getMessage())
+				.append(EOL)
+				.append(ENDPOINT_RESPONSE_DELIMETER)
+				.append(EOL)
+				.append(currentState.getScxmlFile().getScxmlAsString());
+		endpoint.process(message.toString());
 	}
 
 	public void process(String message) {

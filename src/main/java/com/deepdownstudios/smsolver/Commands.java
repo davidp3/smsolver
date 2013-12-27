@@ -101,9 +101,13 @@ public class Commands {
 	 * @throws CommandException 
 	 */
 	private static boolean isMetaCommand(String cmd) throws CommandException {
-		Command.REPLCommand replCommand = Command.REPLCommand.valueOf(cmd);
-		if(replCommand == null)
-			throw new CommandException("Unrecognized command: " + cmd);
+		Command.REPLCommand replCommand;
+		try	{
+			replCommand = Command.REPLCommand.valueOfIgnoreCase(cmd);
+		} catch(IllegalArgumentException e)	{
+			throw new CommandException("Unknown command: " + cmd);
+		}
+		assert(replCommand != null);
 		return (replCommand == Command.REPLCommand.UNDO || replCommand == Command.REPLCommand.REDO ||
 				replCommand == Command.REPLCommand.LOAD || replCommand == Command.REPLCommand.SAVE ||
 				replCommand == Command.REPLCommand.NEW);
