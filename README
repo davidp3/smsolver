@@ -1,0 +1,6 @@
+Note that I need to install TUProlog to maven to be able to build this.
+1. Download the latest TUProlog releast from https://code.google.com/p/tuprolog/source/browse/#svn%2F2p%2Ftags
+2. Copy install-to-maven.sh to the ant directory of the TUProlog release.
+3. Run 'ant 08.package' in the ant subdirectory of the TUProlog release.
+4. Run install-to-maven.sh in that same folder.
+

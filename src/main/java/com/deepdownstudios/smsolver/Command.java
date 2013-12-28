@@ -3,10 +3,10 @@ package com.deepdownstudios.smsolver;
 import java.util.ArrayList;
 import java.util.List;
 
+import alice.tuprolog.Struct;
+import alice.tuprolog.Term;
+
 import com.google.common.collect.ImmutableList;
-import com.igormaznitsa.prologparser.terms.AbstractPrologTerm;
-import com.igormaznitsa.prologparser.terms.PrologAtom;
-import com.igormaznitsa.prologparser.terms.PrologStructure;
 
 public class Command {
 	public enum REPLCommand { 
@@ -22,10 +22,10 @@ public class Command {
 	public static final List<String> keywords = getKeywords();
 
 	// parameterless commands
-	private static final SingleCommand UNDO_CMD = new SingleCommand(REPLCommand.UNDO, ImmutableList.<AbstractPrologTerm>of());
-	private static final SingleCommand REDO_CMD = new SingleCommand(REPLCommand.REDO, ImmutableList.<AbstractPrologTerm>of());
-	private static final SingleCommand SAVE_CMD = new SingleCommand(REPLCommand.SAVE, ImmutableList.<AbstractPrologTerm>of());
-	private static final SingleCommand LOAD_CMD = new SingleCommand(REPLCommand.LOAD, ImmutableList.<AbstractPrologTerm>of());
+	private static final SingleCommand UNDO_CMD = new SingleCommand(REPLCommand.UNDO, ImmutableList.<Term>of());
+	private static final SingleCommand REDO_CMD = new SingleCommand(REPLCommand.REDO, ImmutableList.<Term>of());
+	private static final SingleCommand SAVE_CMD = new SingleCommand(REPLCommand.SAVE, ImmutableList.<Term>of());
+	private static final SingleCommand LOAD_CMD = new SingleCommand(REPLCommand.LOAD, ImmutableList.<Term>of());
 
 	public static final Command NOOP = new Command(ImmutableList.<Command.SingleCommand>of());
 	
@@ -42,19 +42,19 @@ public class Command {
 	
 	public static class SingleCommand	{
 		private REPLCommand replCommand;
-		private List<AbstractPrologTerm> parameters;
-		public SingleCommand(REPLCommand replCommand, List<AbstractPrologTerm> parameters)	{
+		private List<Term> parameters;
+		public SingleCommand(REPLCommand replCommand, List<Term> parameters)	{
 			this.replCommand = replCommand;
 			this.parameters = parameters;
 		}
 		
-		public static SingleCommand parseCommand(PrologStructure command) throws CommandException {
-			REPLCommand replCommand = REPLCommand.valueOfIgnoreCase(command.getFunctor().getText());
+		public static SingleCommand parseCommand(Struct command) throws CommandException {
+			REPLCommand replCommand = REPLCommand.valueOfIgnoreCase(command.getName());
 			if(replCommand == null)
-				throw new CommandException("Unrecognized command: " + command.getFunctor().getText() + "/" + command.getArity());
-			List<AbstractPrologTerm> parameters = new ArrayList<AbstractPrologTerm>();
+				throw new CommandException("Unrecognized command: " + command.getName() + "/" + command.getArity());
+			List<Term> parameters = new ArrayList<Term>();
 			for(int i=0; i<command.getArity(); ++i)	{
-				parameters.add(command.getElement(i));
+				parameters.add(command.getArg(i));
 			}
 			return new SingleCommand(replCommand, parameters);
 		}
@@ -65,10 +65,10 @@ public class Command {
 			if(!parameters.isEmpty())	{
 				builder.append('(');
 				boolean isFirst = true;
-				for(AbstractPrologTerm parameter : parameters)	{
+				for(Term parameter : parameters)	{
 					if(!isFirst)
 						builder.append(", ");
-					builder.append(parameter.getText());
+					builder.append(parameter.toString());
 					isFirst = false;
 				}
 				builder.append(")");
@@ -76,7 +76,7 @@ public class Command {
 			return builder.append('.').toString();
 		}
 
-		public List<AbstractPrologTerm> getParameters() {
+		public List<Term> getParameters() {
 			return parameters;
 		}
 
@@ -89,10 +89,10 @@ public class Command {
 		subcommands = commands;
 	}
 	
-	public static Command build(List<PrologStructure> commandList) throws CommandException {
+	public static Command build(List<Struct> commandList) throws CommandException {
 		List<SingleCommand> subcommands = new ArrayList<SingleCommand>();
 		boolean foundMetaCommand = false;
-		for(PrologStructure subcommandStruct : commandList)	{
+		for(Struct subcommandStruct : commandList)	{
 			SingleCommand subcommand = SingleCommand.parseCommand(subcommandStruct);
 			subcommands.add(subcommand);
 		}
@@ -102,13 +102,13 @@ public class Command {
 		return new Command(subcommands);
 	}
 
-	public static Command build(PrologAtom atom) throws CommandException {
+	public static Command build(Struct atom) throws CommandException {
         // The following are the valid atoms: undo.  redo.  save.  load.
 		REPLCommand replCommand;
 		try	{
-			replCommand = REPLCommand.valueOfIgnoreCase(atom.getText());
+			replCommand = REPLCommand.valueOfIgnoreCase(atom.toString());
 		} catch(IllegalArgumentException e)	{
-	    	throw new CommandException("Unrecognized command: " + atom.getText() + "/0");
+	    	throw new CommandException("Unrecognized command: " + atom.toString() + "/0");
 		}
 
 		switch(replCommand)		{
@@ -121,7 +121,7 @@ public class Command {
 		case LOAD:
 			return new Command(ImmutableList.<Command.SingleCommand>of(LOAD_CMD));
 		default:
-			throw new CommandException("Unrecognized command: " + atom.getText() + "/0");
+			throw new CommandException("Unrecognized command: " + atom.toString() + "/0");
 		}
 	}
 

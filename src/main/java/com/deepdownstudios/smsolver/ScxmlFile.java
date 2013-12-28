@@ -20,6 +20,8 @@ import javax.xml.bind.UnmarshalException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
 
+import alice.tuprolog.Term;
+
 import com.deepdownstudios.scxml.jaxb.ObjectFactory;
 import com.deepdownstudios.scxml.jaxb.ScxmlScxmlType;
 import com.deepdownstudios.smsolver.Command.REPLCommand;
@@ -27,7 +29,6 @@ import com.deepdownstudios.smsolver.Command.SingleCommand;
 import com.deepdownstudios.smsolver.History.HistoryException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
-import com.igormaznitsa.prologparser.terms.AbstractPrologTerm;
 
 public class ScxmlFile {
 	private String filenameWithSuffix;
@@ -88,7 +89,7 @@ public class ScxmlFile {
 		if(singleCommand.getParameters().size() != 1)
 			throw new CommandException("Syntax error in '" + singleCommand.toString() + "'.  Expected format: new(filename)");
 
-		String filename = singleCommand.getParameters().get(0).getText();
+		String filename = singleCommand.getParameters().get(0).toString();
 		String ext = Files.getFileExtension(filename).toLowerCase();
 		/*
 		// Make sure filename has scxml suffix.
@@ -113,7 +114,7 @@ public class ScxmlFile {
 		String filename, 
 			requestedName;		// For error messages
 		File file;
-		List<AbstractPrologTerm> parameters = singleCommand.getParameters();
+		List<Term> parameters = singleCommand.getParameters();
 		boolean asScxml;		// either scxml or lpscr
 		if(parameters.isEmpty())	{
 			filename = history.getCurrentState().getScxmlFile().getLPSCRName();
@@ -128,7 +129,7 @@ public class ScxmlFile {
 			}
 		}
 		else if(parameters.size() == 1)	{
-			filename = parameters.get(0).getText();
+			filename = parameters.get(0).toString();
 			String suffix = Files.getFileExtension(filename);
 			if(!ScxmlFile.LPSCR_SUFFIX.equals(suffix) && !ScxmlFile.SCXML_SUFFIX.equals(suffix))	{
 				filename = filename + '.' + ScxmlFile.LPSCR_SUFFIX;
@@ -167,14 +168,14 @@ public class ScxmlFile {
 		}
 		
 		String filename;
-		List<AbstractPrologTerm> parameters = singleCommand.getParameters();
+		List<Term> parameters = singleCommand.getParameters();
 		boolean asScxml;		// either scxml or lpscr
 		if(parameters.isEmpty())	{
 			filename = history.getCurrentState().getScxmlFile().getLPSCRName();
 			asScxml = false;
 		}
 		else if(parameters.size() == 1)	{
-			filename = parameters.get(0).getText();
+			filename = parameters.get(0).toString();
 			String suffix = Files.getFileExtension(filename);
 			if(!ScxmlFile.LPSCR_SUFFIX.equals(suffix) && !ScxmlFile.SCXML_SUFFIX.equals(suffix))	{
 				filename = filename + '.' + ScxmlFile.LPSCR_SUFFIX;
