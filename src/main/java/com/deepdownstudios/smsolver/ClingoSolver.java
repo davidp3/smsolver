@@ -120,39 +120,19 @@ public class ClingoSolver {
 	}
 	
 	private static ScxmlScxmlType parseClingoResult(String name, String clingoResult) throws CommandException {
-		// UPDATE: I wonder if changing from PrologParser to TUProlog means that I dont need this
-		// anymore.  TUProlog should be able to parse clingo output, which is separated by spaces,
-		// on its own (see parser.nextTerm(boolean)'s parameter below).
-		// However, I dont see how to get a list of results.
-		// The regex matches based on balancing parenthesis while respecting quotation marks.  Clingo
-		// output has no comments.
-		// Match commands in possible compound-command-sequence.
-		final String REGEX = "([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))+(\\s|$)";
-		// ([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))*\\s breakdown:
-		// [^\"'\\s] - match any single character that isn't a quotation mark (single or double) or whitespace
-		// \"\"|'' - match empty single or double quotes
-		// \".*?[^\\\\]\" - match double quotes as long as the second quote isn't preceeded by backslash
-		// '.*?[^\\\\]' - same thing but for single quotes
-		// ([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))+ - match any non-empty sequence of the above four conditions
-		// ([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))+(\\s|$) - match previous up to whitespace or EOL
+		Parser parser = new Parser(clingoResult);
 		List<Term> terms = new ArrayList<Term>();
-		Pattern p = Pattern.compile(REGEX);
-		Matcher matcher = p.matcher(clingoResult);
-		while(matcher.find())   {
-			// group 0 is the top-level group (where levels are defined by nested () and 
-			// level 0 is the whole thing).  Prolog sentences must end in a period.
-			String termStr = matcher.group(0)+'.';
-			try {
-				Parser parser = new Parser(termStr);
-				Term term = parser.nextTerm(true);
+		try {
+			Term term = parser.nextTerm(false);
+			while(term != null)	{
 				terms.add(term);
-				if(parser.nextTerm(true) != null)
-					throw new CommandException("BUG: Leftovers in string while parsing clingo regex output: '" + termStr + "'.");
-			} catch (InvalidTermException e) {
-				throw new CommandException("BUG: Prolog error parsing clingo output: '" + termStr + "'.");
+				term = parser.nextTerm(false);
 			}
+		} catch (InvalidTermException e) {
+			throw new CommandException("BUG: Prolog error parsing clingo output: '" + 
+					clingoResult + "'.\n" + e.getMessage(), e);
 		}
-	
+
 		return PrologToScxml.prologToScxml(name, terms);
 	}
 	

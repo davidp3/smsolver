@@ -20,6 +20,7 @@ import javax.xml.bind.UnmarshalException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
 
+import alice.tuprolog.Struct;
 import alice.tuprolog.Term;
 
 import com.deepdownstudios.scxml.jaxb.ObjectFactory;
@@ -175,7 +176,12 @@ public class ScxmlFile {
 			asScxml = false;
 		}
 		else if(parameters.size() == 1)	{
-			filename = parameters.get(0).toString();
+			if(parameters.get(0) instanceof Struct)	{
+				// ditch single-quotes even in the face of special characters (like '.')
+				filename = ((Struct)parameters.get(0)).getName();
+			}
+			else
+				filename = parameters.get(0).toString();
 			String suffix = Files.getFileExtension(filename);
 			if(!ScxmlFile.LPSCR_SUFFIX.equals(suffix) && !ScxmlFile.SCXML_SUFFIX.equals(suffix))	{
 				filename = filename + '.' + ScxmlFile.LPSCR_SUFFIX;
