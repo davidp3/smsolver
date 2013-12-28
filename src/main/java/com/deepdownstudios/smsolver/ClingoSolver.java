@@ -54,6 +54,8 @@ public class ClingoSolver {
 	private static final String NO_TARGET_STR = "no_target";
 	private static final String NO_ACTION_STR = "no_action";
 	private static final String EDGE_STR = "edge";
+	private static final String STATE_STR = "state";
+	private static final String FINAL_STR = "final";
 	
 	private static final PrologAtom PROP_ATOM = new PrologAtom(PROP_STR);
 	private static final PrologAtom INITIAL_ATOM = new PrologAtom(INITIAL_STR);
@@ -82,6 +84,8 @@ public class ClingoSolver {
 	private static final PrologAtom NO_TARGET_ATOM = new PrologAtom(NO_TARGET_STR);
 	private static final PrologAtom NO_ACTION_ATOM = new PrologAtom(NO_ACTION_STR);
 	private static final PrologAtom EDGE_ATOM = new PrologAtom(EDGE_STR);
+	private static final PrologAtom STATE_ATOM = new PrologAtom(STATE_STR);
+	private static final PrologAtom FINAL_ATOM = new PrologAtom(FINAL_STR);
 	
 	private static String engineCode = getLpscrEngineCode();
 	
@@ -117,26 +121,6 @@ public class ClingoSolver {
 		return ret.toString();
 	}
 
-	private static String getLpscrEngineCode() {
-		InputStream stream = ClingoSolver.class.getResourceAsStream(ENGINE_RESOURCE_NAME);
-		if(stream == null)
-			throw new RuntimeException("BUG: Could not find LPSCR engine resource file '" + ENGINE_RESOURCE_NAME + "'.");
-
-		BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
-		StringBuilder ret = new StringBuilder();
-		String line;
-		try {
-			line = reader.readLine();
-			while(line != null)	{
-				ret.append(line).append('\n');
-				line = reader.readLine();
-			}
-		} catch (IOException e) {
-			throw new RuntimeException("I/O error while reading LPSCR engine code from '"+ENGINE_RESOURCE_NAME+"'.");
-		}
-		return ret.toString();
-	}
-
 	/**
 	 * Run clingo in a separate process and return (only) the portion of the output that includes the new model.
 	 * @param aspPayload	Model given to clingo as String
@@ -158,35 +142,24 @@ public class ClingoSolver {
 			// the (only?) way to send the EOF is to close the output stream. 
 			clingoInput.close();
 			
-			// Clingo output is not easily parsed.  However,
-			// all lines except the actual result line (seems there is only one) start with a Capital Letter.
+			// Clingo output is not easily parsed.  However, docs say result is always after the
+			// SATISFIED label.  Seems to always be one line (unlike in the docs)
 			String line = clingoOutput.readLine();
-			String ret = null;
-			// Clingo output should include either SATISFIABLE or UNSATISFIABLE
 			boolean gotSatisfiable=false, gotUnsatisfiable=false, gotUnknown=false;
 			while(line != null)	{
 				if(line.equals(CLINGO_SATISFIABLE))
 					gotSatisfiable = true;
 				if(line.equals(CLINGO_UNSATISFIABLE))
-					gotUnsatisfiable = true;
+					throw new CommandException("The state machine commands were not satisfiable.");
 				if(line.equals(CLINGO_UNKNOWN))
-					gotUnknown = true;
+					throw new CommandException("BUG: Clingo was interrupted.  I think this happens when the input has a syntax error.");
 				if(!line.isEmpty() && !Character.isUpperCase(line.charAt(0)))
-					ret = line;
+					return line;
 				line = clingoOutput.readLine();
 			}
-			clingoOutput.close();
-			if(!gotSatisfiable && !gotUnsatisfiable && !gotUnknown)
-				throw new CommandException("BUG: Clingo response was not understood.");
-			if(gotUnknown)
-				throw new CommandException("BUG: Clingo was interrupted.");
-			if(gotUnsatisfiable)
-				throw new CommandException("The state machine commands were not satisfiable.");
-			assert ret != null;
-			return ret;
+			throw new CommandException("BUG: Clingo output should include either SATISFIABLE, UNSATISFIABLE or UNKNOWN.");
 		} catch (IOException e) {
-			e.printStackTrace();
-			throw new CommandException("I/O error while communicating with clingo.", e);
+			throw new CommandException("I/O error while communicating with clingo: " + e.getMessage());
 		} finally {
 			if(clingoInput != null)	{
 				try {
@@ -209,19 +182,22 @@ public class ClingoSolver {
 		// The regex matches based on balancing parenthesis while respecting quotation marks.  Clingo
 		// output has no comments.
 		// Match commands in possible compound-command-sequence.
-		// ([^\"\\s]|(\".*?\"))*\\s breakdown:
-		// [^\"\\s] - match any single character that isn't a quotation mark or whitespace
-		// (\".*?\") - match a quotation mark, followed by anything up to the next quotation mark
-		// ([^\";]|(\".*?\"))* - match any combination of zero or more of the first two matchers
-		// ([^\"\\s]|(\".*?\"))*\\s - match previous up to whitespace
+		final String REGEX = "([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))+(\\s|$)";
+		// ([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))*\\s breakdown:
+		// [^\"'\\s] - match any single character that isn't a quotation mark (single or double) or whitespace
+		// \"\"|'' - match empty single or double quotes
+		// \".*?[^\\\\]\" - match double quotes as long as the second quote isn't preceeded by backslash
+		// '.*?[^\\\\]' - same thing but for single quotes
+		// ([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))+ - match any non-empty sequence of the above four conditions
+		// ([^\"'\\s]|\"\"|''|(\".*?[^\\\\]\")|('.*?[^\\\\]'))+(\\s|$) - match previous up to whitespace or EOL
 		PrologParser parser = new PrologParser(null);
 		List<AbstractPrologTerm> terms = new ArrayList<AbstractPrologTerm>();
-		Pattern p = Pattern.compile("([^\";]|(\".*?\"))*\\.");
+		Pattern p = Pattern.compile(REGEX);
 		Matcher matcher = p.matcher(clingoResult);
 		while(matcher.find())   {
 			// group 0 is the top-level group (where levels are defined by nested () and 
 			// level 0 is the whole thing)
-			String termStr = matcher.group(0);
+			String termStr = matcher.group(0)+'.';
 			try {
 				AbstractPrologTerm term = parser.nextSentence(termStr);
 				terms.add(term);
@@ -237,6 +213,8 @@ public class ClingoSolver {
 		return prologToScxml(name, terms);
 	}
 	
+	/************************** SCXML to PROLOG ***************************/
+
 	private static PrologStructure prop(AbstractPrologTerm param0, AbstractPrologTerm param1, 
 			AbstractPrologTerm param2) {
 		return new PrologStructure(PROP_ATOM, new AbstractPrologTerm[] {param0, param1, param2});
@@ -466,7 +444,7 @@ public class ClingoSolver {
 		else
 			historyType = SHALLOW_ATOM;
 		ScxmlTransitionType transition = state.getTransition();
-		ret.add(new PrologStructure(historyType, new AbstractPrologTerm[] { id }));
+		ret.add(new PrologStructure(STATE_ATOM, new AbstractPrologTerm[] { historyType, id }));
 		if(transition != null)
 			addTransition(ret, id, transition);
 	}
@@ -476,7 +454,7 @@ public class ClingoSolver {
 		if(idStr == null)
 			idStr = genId();
 		PrologAtom id = new PrologAtom(idStr);
-		ret.add(simple(id));
+		ret.add(finalState(id));
 		ret.add(parent(new PrologAtom(parentStr), id));
 		
 		List<AbstractPrologTerm> onEntryHandlers = new ArrayList<AbstractPrologTerm>();
@@ -618,11 +596,15 @@ public class ClingoSolver {
 	}
 
 	private static PrologStructure simple(PrologAtom id) {
-		return new PrologStructure(SIMPLE_ATOM, new AbstractPrologTerm[] { id });
+		return new PrologStructure(STATE_ATOM, new AbstractPrologTerm[] { SIMPLE_ATOM, id });
 	}
 
 	private static PrologStructure parallel(PrologAtom id) {
-		return new PrologStructure(PARALLEL_ATOM, new AbstractPrologTerm[] { id });
+		return new PrologStructure(STATE_ATOM, new AbstractPrologTerm[] { PARALLEL_ATOM, id });
+	}
+
+	private static PrologStructure finalState(PrologAtom id) {	// NOTE: 'final' is a Java keyword so name is 'finalState'
+		return new PrologStructure(STATE_ATOM, new AbstractPrologTerm[] { FINAL_ATOM, id });
 	}
 
 	private static String genId() {
@@ -632,10 +614,34 @@ public class ClingoSolver {
 	private static PrologStructure parent(PrologAtom parent, PrologAtom child) {
 		return new PrologStructure(PARENT_ATOM, new AbstractPrologTerm[] { parent, child });
 	}
+	
+	/************************** PROLOG to SCXML ***************************/
 
 	private static ScxmlScxmlType prologToScxml(String name, List<AbstractPrologTerm> terms) {
 		ScxmlScxmlType scxmlType = new ScxmlScxmlType();
 		scxmlType.setName(name);
 		return scxmlType;
+	}
+
+	/************************** MISCELLANEOUS ***************************/
+
+	private static String getLpscrEngineCode() {
+		InputStream stream = ClingoSolver.class.getResourceAsStream(ENGINE_RESOURCE_NAME);
+		if(stream == null)
+			throw new RuntimeException("BUG: Could not find LPSCR engine resource file '" + ENGINE_RESOURCE_NAME + "'.");
+
+		BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+		StringBuilder ret = new StringBuilder();
+		String line;
+		try {
+			line = reader.readLine();
+			while(line != null)	{
+				ret.append(line).append('\n');
+				line = reader.readLine();
+			}
+		} catch (IOException e) {
+			throw new RuntimeException("I/O error while reading LPSCR engine code from '"+ENGINE_RESOURCE_NAME+"'.");
+		}
+		return ret.toString();
 	}
 }

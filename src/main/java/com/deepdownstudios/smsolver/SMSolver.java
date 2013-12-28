@@ -1,18 +1,14 @@
 package com.deepdownstudios.smsolver;
 
-import java.io.FileOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.MarshalException;
-import javax.xml.bind.Marshaller;
-import javax.xml.bind.PropertyException;
 
 import jline.console.ConsoleReader;
 import jline.console.completer.FileNameCompleter;
 import jline.console.completer.StringsCompleter;
+import jline.console.history.FileHistory;
+import jline.console.history.PersistentHistory;
 
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
@@ -86,9 +82,11 @@ public class SMSolver implements Endpoint
 		}
 		
 		ConsoleReader reader = new ConsoleReader();
+	    reader.setHistory(new FileHistory(new File(System.getProperty("user.home"), ".smsolver.history")));
 		reader.setPrompt("smsolver> ");
 		reader.addCompleter(new FileNameCompleter());
 		reader.addCompleter(new StringsCompleter( Command.keywords ));
+		reader.setHistoryEnabled(true);
 		
 		PrintWriter consoleWriter = new PrintWriter(reader.getOutput());
 		final SMSolver smsolver = new SMSolver();
@@ -119,8 +117,8 @@ public class SMSolver implements Endpoint
 
 		String line;
 		while ((line = reader.readLine()) != null) {
-			if (line.equalsIgnoreCase("quit") || line.equalsIgnoreCase("exit")) {
-				break;
+			if (line.equalsIgnoreCase("quit.") || line.equalsIgnoreCase("exit.")) {
+				break;		// Don't want this to persist in 'reader' history.
 			}
 
 			// Compute and send the result to the endpoint unless it was
@@ -129,9 +127,11 @@ public class SMSolver implements Endpoint
 				smsolver.executeAndRespond(line);
 			} catch (CommandException e) {
 				consoleWriter.println("ERROR: Command Failed.  " + e.getMessage());
-				if(e.getCause().getMessage() != null)
-					consoleWriter.println("\t" + e.getCause().getMessage());
 			}
+			
+			// JLine2 seems to have the bug that it never saves the history to a file
+			// unless you manually do this:
+			((PersistentHistory)reader.getHistory()).flush();
 		}
 		
 		// Close the connection to the remote server.  This is necessary to stop those threads which
