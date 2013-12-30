@@ -7,15 +7,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import alice.tuprolog.InvalidTermException;
 import alice.tuprolog.Parser;
 import alice.tuprolog.Term;
-
-import com.deepdownstudios.scxml.jaxb.ScxmlScxmlType;
-import com.google.common.io.Files;
 
 public class ClingoSolver {
 	private static final String CLINGO_UNSATISFIABLE = "UNSATISFIABLE";
@@ -43,17 +38,16 @@ public class ClingoSolver {
 		String filename = state.getScxmlFile().getFilename();
 		String statemachineName = state.getScxmlFile().getScxml().getName();
 		assert statemachineName != null;
-		ScxmlScxmlType newScxmlDocument = parseClingoResult(statemachineName, clingoResult);
-		return new ScxmlFile(filename, newScxmlDocument);
+		return new ScxmlFile(filename, statemachineName, parseClingoResult(clingoResult));
 	}
 
 	private static String buildAspPayload(State state, Command command) throws CommandException {
 		// First, add the engine and any user functions
 		StringBuilder ret = new StringBuilder(engineCode);
 		// Then, add the SCXML document from state
-		List<Term> terms = ScxmlToProlog.scxmlToProlog(state.getScxmlFile().getScxml());
+		List<Term> terms = state.getScxmlFile().getScxmlProlog();
 		for(Term term : terms)
-			ret.append(term.toString()).append(".\n");
+			ret.append("input(").append(term.toUnquotedString()).append(").\n");
 		// Then add the commands
 		ret.append(command.toString());
 		return ret.toString();
@@ -91,9 +85,9 @@ public class ClingoSolver {
 				else if(line.equals(CLINGO_SATISFIABLE))
 					throw new CommandException("BUG: Clingo reported SATISFIABLE but provided no answer.");
 				else if(line.equals(CLINGO_UNSATISFIABLE))
-					throw new CommandException("The state machine commands were not satisfiable.");
+					throw new CommandException("The state machine commands were not satisfiable:\n" + aspPayload);
 				else if(line.equals(CLINGO_UNKNOWN))
-					throw new CommandException("BUG: Clingo was interrupted.  I think this happens when the input has a syntax error.");
+					throw new CommandException("BUG: Clingo was interrupted.  I think this happens when the input has a syntax error.\n" + aspPayload);
 				else if(lastLineWasAnswerTag && !line.isEmpty())
 					return line;
 				line = clingoOutput.readLine();
@@ -119,7 +113,7 @@ public class ClingoSolver {
 		}
 	}
 	
-	private static ScxmlScxmlType parseClingoResult(String name, String clingoResult) throws CommandException {
+	private static List<Term> parseClingoResult(String clingoResult) throws CommandException {
 		Parser parser = new Parser(clingoResult);
 		List<Term> terms = new ArrayList<Term>();
 		try {
@@ -133,7 +127,7 @@ public class ClingoSolver {
 					clingoResult + "'.\n" + e.getMessage(), e);
 		}
 
-		return PrologToScxml.prologToScxml(name, terms);
+		return terms;
 	}
 	
 	private static String getLpscrEngineCode() {

@@ -7,7 +7,7 @@
 %%%%%%%%%%%%%%%%%%%
 % INPUT MACHINE
 %%%%%%%%%%%%%%%%%%%
-
+%*
 input(state(simple, stages)).							% Later changed to par(stages)
 input(state(simple, app_splash)).
 input(state(simple, publisher_splash)).
@@ -26,25 +26,25 @@ input(state(simple, publisher_start)).
 input(prop(publisher_splash, initial, publisher_start)).
 input(parent(publisher_splash,publisher_start)).
 input(parent(publisher_splash,publisher_shallow_hist)).
-input(edge(publisher_run, publisher_end, no_cond, publisher_stop_evt, publisher_stop_action)).
-
+input(edge(publisher_run, publisher_end, no_cond, publisher_stop_evt, script(src(publisher_stop_action)))).
+*%
 %%%%%%%%%%%%%%%%%%%
 % INPUT COMMANDS
 %%%%%%%%%%%%%%%%%%%
-
+%*
 change(state(shallow,publisher_shallow_hist)).
 
 set(edge(publisher_start, publisher_init, no_cond, no_event, no_action)).
-set(edge(publisher_init, publisher_run, no_cond, publisher_init_evt, publisher_init_action)).
+set(edge(publisher_init, publisher_run, no_cond, publisher_init_evt, script(publisher_init_action))).
 % set(edge(publisher_shallow_hist, publisher_init, no_cond, no_event, no_action)). % System connects _hist to _start by default
 
 delete(edge(stages, app_splash, X1, X2, X3)) :- input(edge(stages, app_splash, X1, X2, X3)).
 
 change(state(par, stages)).								% input simple(stages) is changed to par(stages)
-change(edge(app_splash, publisher_splash, timer(seconds(1)), no_event, start_main_music)).
+change(edge(app_splash, publisher_splash, timer(seconds(1)), no_event, script(src(start_main_music)))).
 
-change(edge(publisher_run, publisher_end, no_cond, publisher_stop_evt, publisher_stop_action),
-	edge(publisher_run, publisher_end, no_cond, changed_publisher_stop_evt, changed_publisher_stop_action)).
+change(edge(publisher_run, publisher_end, no_cond, publisher_stop_evt, script(src(publisher_stop_action))),
+	edge(publisher_run, publisher_end, no_cond, changed_publisher_stop_evt, script(src(changed_publisher_stop_action)))).
 
 set(prop(app_splash, on_enter, show_splash)).
 set(prop(app_splash, on_exit, kill_splash)).
@@ -60,7 +60,7 @@ change(parent(publisher_splash,publisher_run)).
 change(parent(publisher_splash,publisher_end)).
 
 delete(state(simple, dumb_state)).
-
+*%
 %%%%%%%%%%%%%%%%%%%
 % ENGINE
 %%%%%%%%%%%%%%%%%%%

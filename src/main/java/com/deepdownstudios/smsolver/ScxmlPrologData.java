@@ -1,6 +1,7 @@
 package com.deepdownstudios.smsolver;
 
 import alice.tuprolog.Struct;
+import alice.tuprolog.Term;
 
 public class ScxmlPrologData {
 	public static final String TOP_STATE_STR = "top_state";
@@ -9,9 +10,9 @@ public class ScxmlPrologData {
 	public static final String PARENT_STR = "parent";
 	public static final String SIMPLE_STR = "simple";
 	public static final String PARALLEL_STR = "par";
-	public static final String RUN_STR = "run";
 	public static final String ON_ENTRY_STR = "onentry";
 	public static final String ON_EXIT_STR = "onexit";
+	public static final String SEQ_STR = "_seq";
 	public static final String RAISE_STR = "raise";
 	public static final String NO_CONTENT_STR = "noop";
 	public static final String NO_COND_STR = "no_cond";
@@ -33,6 +34,13 @@ public class ScxmlPrologData {
 	public static final String EDGE_STR = "edge";
 	public static final String STATE_STR = "state";
 	public static final String FINAL_STR = "final";
+	public static final String CLAUSE_FUNCTOR_STR = ":-";
+	public static final String TRUE_STR = "true";
+	public static final String X_STR = "X";
+	public static final String X1_STR = "X1";
+	public static final String X2_STR = "X2";
+	public static final String X3_STR = "X3";
+	public static final String X4_STR = "X4";
 	
 	public static final Struct PROP_ATOM = new Struct(PROP_STR);
 	public static final Struct INITIAL_ATOM = new Struct(INITIAL_STR);
@@ -40,7 +48,6 @@ public class ScxmlPrologData {
 	public static final Struct PARENT_ATOM = new Struct(PARENT_STR);
 	public static final Struct SIMPLE_ATOM = new Struct(SIMPLE_STR);
 	public static final Struct PARALLEL_ATOM = new Struct(PARALLEL_STR);
-	public static final Struct RUN_ATOM = new Struct(RUN_STR);
 	public static final Struct ON_ENTRY_ATOM = new Struct(ON_ENTRY_STR);
 	public static final Struct ON_EXIT_ATOM = new Struct(ON_EXIT_STR);
 	public static final Struct RAISE_ATOM = new Struct(RAISE_STR);
@@ -63,4 +70,6 @@ public class ScxmlPrologData {
 	public static final Struct EDGE_ATOM = new Struct(EDGE_STR);
 	public static final Struct STATE_ATOM = new Struct(STATE_STR);
 	public static final Struct FINAL_ATOM = new Struct(FINAL_STR);
+	public static final Term TRUE_ATOM = new Struct(TRUE_STR);
+	public static final Term CLAUSE_FUNCTOR_ATOM = new Struct(CLAUSE_FUNCTOR_STR);
 }

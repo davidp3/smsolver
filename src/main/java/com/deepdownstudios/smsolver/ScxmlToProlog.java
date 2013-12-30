@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import javax.xml.bind.JAXBElement;
+
 import static com.deepdownstudios.smsolver.ScxmlPrologData.*;
 import alice.tuprolog.Struct;
 import alice.tuprolog.Term;
@@ -37,7 +39,9 @@ public class ScxmlToProlog {
 
 		addInitialStates(ret, TOP_STATE_ATOM, scxml.getInitial());
 		
-		for(Object iChild : scxml.getScxmlScxmlMix())	{
+		List<Term> onEntryHandlers = new ArrayList<Term>();
+		for(Object iChildObj : scxml.getScxmlScxmlMix())	{
+			Object iChild = resolveJAXBObject(iChildObj);
 			if(iChild instanceof ScxmlStateType)	{
 				ScxmlStateType state = (ScxmlStateType) iChild;
 				addSimpleState(ret, TOP_STATE_STR, state);
@@ -50,20 +54,23 @@ public class ScxmlToProlog {
 			} else if(iChild instanceof ScxmlScriptType)	{
 				// Model top-level scripts as onEntry into TOP_STATE_ATOM.
 				Term script = executableContentHelper(iChild);
-				ret.add(onEntryProp(TOP_STATE_ATOM, new Struct(RUN_STR, new Term[] { script } )));
+				onEntryHandlers.add(script);
 			} else if(iChild instanceof ScxmlDatamodelType)	{
 				throw new CommandException("SCXML child element " + iChild + " is not yet supported.");
 			} else {
 				throw new CommandException("SCXML child element " + iChild + " could not be interpreted.");
 			}
 		}
+		
+		// THIS IS A PROBLEM because I cant easily pull apart the parameters when the arity is random as it is here.
+		if(!onEntryHandlers.isEmpty())
+			ret.add(onEntryProp(TOP_STATE_ATOM, toSeqList(onEntryHandlers)));
 		return ret;
 	}
 
 	private static void addInitialStates(List<Term> ret, Struct fromState, List<Object> initialStates) throws CommandException {
-		if(initialStates == null)
-			return;		// no initial states
-		for(Object iState : initialStates)	{
+		for(Object iStateObj : initialStates)	{
+			Object iState = resolveJAXBObject(iStateObj);
 			if(iState instanceof ScxmlStateType)	{
 				ScxmlStateType state = (ScxmlStateType) iState;
 				assert state.getId() != null;		// must be in order to be a target.  See common sense and Sec 3.14 "IDs".
@@ -88,12 +95,14 @@ public class ScxmlToProlog {
 			idStr = genId();
 		Struct id = new Struct(idStr);
 		ret.add(simple(id));
-		ret.add(parent(new Struct(parentStr), id));
+		if(!TOP_STATE_STR.equals(parentStr))		// parent(top_state,xxx) is not supposed to be given to clingo
+			ret.add(parent(new Struct(parentStr), id));
 		addInitialStates(ret, id, state.getInitial());
 		
 		List<Term> onEntryHandlers = new ArrayList<Term>();
 		List<Term> onExitHandlers = new ArrayList<Term>();
-		for(Object child : state.getScxmlStateMix())	{
+		for(Object childObj : state.getScxmlStateMix())	{
+			Object child = resolveJAXBObject(childObj);
 			if(child instanceof ScxmlOnentryType)	{
 				ScxmlOnentryType executable = (ScxmlOnentryType) child;
 				onEntryHandlers.add(onentry(executable));
@@ -135,10 +144,10 @@ public class ScxmlToProlog {
 			}
 		}
 		if(!onEntryHandlers.isEmpty())	{
-			ret.add(onEntryProp(id, new Struct(RUN_STR, onEntryHandlers.toArray(new Term[0]))));
+			ret.add(onEntryProp(id, toSeqList(onEntryHandlers)));
 		}
 		if(!onExitHandlers.isEmpty())	{
-			ret.add(onExitProp(id, new Struct(RUN_STR, onExitHandlers.toArray(new Term[0]))));
+			ret.add(onExitProp(id, toSeqList(onExitHandlers)));
 		}
 	}
 
@@ -160,7 +169,7 @@ public class ScxmlToProlog {
 		
 		// Executable content defines actions
 		Term action;
-		if(transition.getScxmlCoreExecutablecontent() != null)	{
+		if(!transition.getScxmlCoreExecutablecontent().isEmpty())	{
 			action = executableContent(transition.getScxmlCoreExecutablecontent());
 		} else {
 			action = NO_ACTION_ATOM;
@@ -168,7 +177,14 @@ public class ScxmlToProlog {
 		ret.add(new Struct(EDGE_STR, new Term[] { srcState, target, cond, events, action } ));
 	}
 
-	private static String getId(Object elt) throws CommandException {
+	private static Object resolveJAXBObject(Object potentialJAXBObject)	{
+		if(potentialJAXBObject instanceof JAXBElement<?>)
+			return ((JAXBElement<?>)potentialJAXBObject).getValue();
+		return potentialJAXBObject;
+	}
+	
+	private static String getId(Object eltObj) throws CommandException {
+		Object elt = resolveJAXBObject(eltObj);
 		if(elt instanceof ScxmlStateType)
 			return ((ScxmlStateType)elt).getId();
 		if(elt instanceof ScxmlParallelType)
@@ -190,7 +206,8 @@ public class ScxmlToProlog {
 		
 		List<Term> onEntryHandlers = new ArrayList<Term>();
 		List<Term> onExitHandlers = new ArrayList<Term>();
-		for(Object child : state.getScxmlParallelMix())	{
+		for(Object childObj : state.getScxmlParallelMix())	{
+			Object child = resolveJAXBObject(childObj);
 			if(child instanceof ScxmlOnentryType)	{
 				ScxmlOnentryType executable = (ScxmlOnentryType) child;
 				onEntryHandlers.add(onentry(executable));
@@ -219,10 +236,10 @@ public class ScxmlToProlog {
 			}
 		}
 		if(!onEntryHandlers.isEmpty())	{
-			ret.add(onEntryProp(id, new Struct(RUN_STR, onEntryHandlers.toArray(new Term[0]))));
+			ret.add(onEntryProp(id, toSeqList(onEntryHandlers)));
 		}
 		if(!onExitHandlers.isEmpty())	{
-			ret.add(onExitProp(id, new Struct(RUN_STR, onExitHandlers.toArray(new Term[0]))));
+			ret.add(onExitProp(id, toSeqList(onExitHandlers)));
 		}
 	}
 
@@ -255,7 +272,8 @@ public class ScxmlToProlog {
 		
 		List<Term> onEntryHandlers = new ArrayList<Term>();
 		List<Term> onExitHandlers = new ArrayList<Term>();
-		for(Object child : state.getScxmlFinalMix())	{
+		for(Object childObj : state.getScxmlFinalMix())	{
+			Object child = resolveJAXBObject(childObj);
 			if(child instanceof ScxmlOnentryType)	{
 				ScxmlOnentryType executable = (ScxmlOnentryType) child;
 				onEntryHandlers.add(onentry(executable));
@@ -267,10 +285,10 @@ public class ScxmlToProlog {
 			}
 		}
 		if(!onEntryHandlers.isEmpty())	{
-			ret.add(onEntryProp(id, new Struct(RUN_STR, onEntryHandlers.toArray(new Term[0]))));
+			ret.add(onEntryProp(id, toSeqList(onEntryHandlers)));
 		}
 		if(!onExitHandlers.isEmpty())	{
-			ret.add(onExitProp(id, new Struct(RUN_STR, onExitHandlers.toArray(new Term[0]))));
+			ret.add(onExitProp(id, toSeqList(onExitHandlers)));
 		}
 	}
 
@@ -282,7 +300,8 @@ public class ScxmlToProlog {
 		return executableContent(xml.getScxmlCoreExecutablecontent());
 	}
 
-	public static Term executableContentHelper(Object execContentNode) throws CommandException {
+	public static Term executableContentHelper(Object execContentNodeObj) throws CommandException {
+		Object execContentNode = resolveJAXBObject(execContentNodeObj);
 		if(execContentNode instanceof ScxmlRaiseType)	{
 			ScxmlRaiseType raiseType = (ScxmlRaiseType) execContentNode;
 			return raise(raiseType.getEvent());
@@ -328,7 +347,7 @@ public class ScxmlToProlog {
 			if(logType.getLabel() == null)
 				expr = NO_LOG_EXPR_ATOM;
 			else
-				expr = new Struct(logType.getLabel());
+				expr = new Struct(logType.getExpr());
 			return new Struct(LOG_STR, new Term[] { label, expr });
 		} else if(execContentNode instanceof ScxmlAssignType) {
 			ScxmlAssignType assignType = (ScxmlAssignType)execContentNode;
@@ -343,6 +362,7 @@ public class ScxmlToProlog {
 			} else {
 				expr = new Struct(assignType.getExpr());
 			}
+			assert !(expr.isEmptyList());		// assign value cannot be empty!
 			return new Struct(ASSIGN_STR, new Term[] { new Struct(assignType.getLocation()), expr });
 		} else if(execContentNode instanceof ScxmlScriptType) {
 			ScxmlScriptType scriptType = (ScxmlScriptType)execContentNode;
@@ -353,7 +373,9 @@ public class ScxmlToProlog {
 				// assignment value is in children of XML element.  Not sure what to expect so just making a String separated by EOLs. 
 				StringBuilder contentStr = new StringBuilder();
 				for(Object o : scriptType.getContent())	{
-					contentStr.append(o.toString()).append(EOL_STR);
+					if(contentStr.length() != 0)
+						contentStr.append(EOL_STR);
+					contentStr.append(o.toString());
 				}
 				script = new Struct(contentStr.toString());
 			}
@@ -366,6 +388,15 @@ public class ScxmlToProlog {
 		}
 	}
 
+	private static Term toSeqList(List<Term> terms) throws CommandException	{
+		if(terms.isEmpty())
+			throw new CommandException("BUG: Empty sequential operations list.");
+		Term ret = terms.get(0);
+		for(int i=1; i<terms.size(); i++)
+			ret = new Struct(SEQ_STR, ret, terms.get(i));
+		return ret;
+	}
+	
 	private static Term executableContent(List<Object> executablecontent) throws CommandException {
 		if(executablecontent == null)	{
 			return NO_CONTENT_ATOM;
@@ -374,21 +405,19 @@ public class ScxmlToProlog {
 		for(Object iChild : executablecontent)	{
 			terms.add(executableContentHelper(iChild));
 		}
-		return new Struct(RUN_STR, terms.toArray(new Term[0]));
+		return toSeqList(terms);
 	}
 
 	private static Term raise(String event) {
 		return new Struct(RAISE_STR, new Term[] { new Struct(event) });
 	}
 
-	private static Struct onEntryProp(Struct id, Struct onEntryHandlers) {
+	private static Struct onEntryProp(Struct id, Term onEntryHandlers) {
 		return prop(id, ON_ENTRY_ATOM, onEntryHandlers);
-
 	}
 
-	private static Struct onExitProp(Struct id, Struct onExitHandlers) {
+	private static Struct onExitProp(Struct id, Term onExitHandlers) {
 		return prop(id, ON_EXIT_ATOM, onExitHandlers);
-
 	}
 
 	private static Struct simple(Struct id) {

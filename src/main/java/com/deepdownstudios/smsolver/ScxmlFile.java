@@ -12,6 +12,7 @@ import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.MarshalException;
 import javax.xml.bind.Marshaller;
@@ -20,7 +21,6 @@ import javax.xml.bind.UnmarshalException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.transform.stream.StreamSource;
 
-import alice.tuprolog.Struct;
 import alice.tuprolog.Term;
 
 import com.deepdownstudios.scxml.jaxb.ObjectFactory;
@@ -34,7 +34,10 @@ import com.google.common.io.Files;
 public class ScxmlFile {
 	private String filenameWithSuffix;
 	private String filenameBase;		///< Suffix-less filename
-	private ScxmlScxmlType scxml;
+	// NOTE: At least one of scxml and scxmlProlog is not null
+	private ScxmlScxmlType scxml;		/// SCXML document as XML
+	private List<Term> scxmlProlog;		/// SCXML document as prolog term(s)
+	private String statemachineName;
 
 	public static final String SCXML_SUFFIX = "scxml";
 	public static final String LPSCR_SUFFIX = "lpscr";
@@ -52,29 +55,71 @@ public class ScxmlFile {
 	}
 
 	/**
-	 * Holds existing SCXML document
-	 * @param filename
-	 * @param scxml
+	 * Create a 'file-object' for a SCXML document
+	 * @param filename		Full filename, including either .scxml or .lpscr suffix
+	 * @param scxml			JAXB SCXML document
 	 */
 	public ScxmlFile(String filename, ScxmlScxmlType scxml)	{
 		assert filename != null && scxml != null;
-		assert LPSCR_SUFFIX.equals(Files.getFileExtension(filename)) || SCXML_SUFFIX.equals(Files.getFileExtension(filename)); 
-		this.filenameWithSuffix = filename;
-		this.filenameBase = Files.getNameWithoutExtension(filename);
+		setFilename(filename);
+		this.statemachineName = scxml.getName();
+		assert this.statemachineName != null;
 		this.scxml = scxml;
-
+		this.scxmlProlog = null;
 	}
 
+	/**
+	 * Create a 'file-object' for a SCXML document
+	 * @param filename			Full filename, including either .scxml or .lpscr suffix
+	 * @param statemachineName	Name of SCXML state machine
+	 * @param scxmlProlog		Prolog terms that constitute document
+	 */
+	public ScxmlFile(String filename, String statemachineName, List<Term> scxmlProlog)	{
+		assert filename != null && scxmlProlog != null && statemachineName != null;
+		setFilename(filename);
+		this.statemachineName = statemachineName;
+		this.scxml = null;
+		this.scxmlProlog = scxmlProlog;
+	}
+
+	/**
+	 * @return Filename when saved as .scxml document
+	 */
 	public String getSCXMLName() {
 		return filenameBase + '.' + ScxmlFile.SCXML_SUFFIX;
 	}
 
+	/**
+	 * @return Filename when saved as .lpscr document
+	 */
 	public String getLPSCRName() {
 		return filenameBase + '.' + ScxmlFile.LPSCR_SUFFIX;
 	}
 	
-	public ScxmlScxmlType getScxml()	{
+	/**
+	 * @return	JAXB SCXML document.
+	 * @throws CommandException		Error generating JAXB document from Prolog spec
+	 */
+	public ScxmlScxmlType getScxml() throws CommandException	{
+		if(scxml == null)	{
+			assert scxmlProlog != null;
+			scxml = (new PrologToScxml()).prologToScxml(statemachineName, scxmlProlog);
+			assert scxml != null;
+		}
 		return scxml;
+	}
+
+	/**
+	 * @return	Prolog terms that define SCXML document
+	 * @throws CommandException		Error generating Prolog terms from JAXB
+	 */
+	public List<Term> getScxmlProlog() throws CommandException {
+		if(scxmlProlog == null)	{
+			assert scxml != null;
+			scxmlProlog = ScxmlToProlog.scxmlToProlog(scxml);
+			assert scxmlProlog != null; 
+		}
+		return scxmlProlog;
 	}
 
 	/**
@@ -84,7 +129,13 @@ public class ScxmlFile {
 	public String getFilename() {
 		return filenameWithSuffix;
 	}
-	
+
+	/**
+	 * Factory that creates new SCXML documents.
+	 * @param singleCommand		A REPLCommand.NEW command with one parameter that is the SCXML filename/document name
+	 * @return		The new SCXML document
+	 * @throws CommandException		The singleCommand wasn't a new(Filename)/1 command.
+	 */
 	public static ScxmlFile newState(SingleCommand singleCommand) throws CommandException {
 		assert singleCommand.getREPLCommand() == REPLCommand.NEW;
 		if(singleCommand.getParameters().size() != 1)
@@ -92,17 +143,6 @@ public class ScxmlFile {
 
 		String filename = singleCommand.getParameters().get(0).toString();
 		String ext = Files.getFileExtension(filename).toLowerCase();
-		/*
-		// Make sure filename has scxml suffix.
-		if(!ext.equals(State.LPSCR_SUFFIX))	{
-			// strip .lpscr extension if present
-			filename = Files.getNameWithoutExtension(filename);
-		}
-		if(!ext.equals(State.SCXML_SUFFIX))	{
-			// add .scxml extension if not present
-			filename = filename + "." + State.SCXML_SUFFIX;
-		}
-		*/
 		// Make sure filename has lpscr (default) or scxml suffix.
 		if(!ext.equals(ScxmlFile.LPSCR_SUFFIX) && !ext.equals(ScxmlFile.SCXML_SUFFIX))	{
 			filename = filename + "." + ScxmlFile.LPSCR_SUFFIX;
@@ -111,6 +151,13 @@ public class ScxmlFile {
 		return new ScxmlFile(filename);
 	}
 
+	/**
+	 * Factory to load an .lpscr or .scxml file.
+	 * @param history		History to load file into
+	 * @param singleCommand	load/0 command or load(Filename)/1 command
+	 * @return				The newly loaded SCXML document
+	 * @throws CommandException		The command was improperly formatted or the file failed to load
+	 */
 	public static ScxmlFile load(History history, SingleCommand singleCommand) throws CommandException {
 		String filename, 
 			requestedName;		// For error messages
@@ -130,7 +177,7 @@ public class ScxmlFile {
 			}
 		}
 		else if(parameters.size() == 1)	{
-			filename = parameters.get(0).toString();
+			filename = parameters.get(0).toUnquotedString();
 			String suffix = Files.getFileExtension(filename);
 			if(!ScxmlFile.LPSCR_SUFFIX.equals(suffix) && !ScxmlFile.SCXML_SUFFIX.equals(suffix))	{
 				filename = filename + '.' + ScxmlFile.LPSCR_SUFFIX;
@@ -159,7 +206,7 @@ public class ScxmlFile {
 	 * @param singleCommand		The save command.  If it has no parameters or the filename parameter does
 	 * 							not specify .scxml or .lpscr then this function saves as lpscr.
 	 * @return					The name of the file written.
-	 * @throws CommandException
+	 * @throws CommandException	The command was incorrectly formatted or the save failed.
 	 */
 	public static String save(History history, SingleCommand singleCommand) throws CommandException {
 		try	{
@@ -176,12 +223,7 @@ public class ScxmlFile {
 			asScxml = false;
 		}
 		else if(parameters.size() == 1)	{
-			if(parameters.get(0) instanceof Struct)	{
-				// ditch single-quotes even in the face of special characters (like '.')
-				filename = ((Struct)parameters.get(0)).getName();
-			}
-			else
-				filename = parameters.get(0).toString();
+			filename = parameters.get(0).toUnquotedString();
 			String suffix = Files.getFileExtension(filename);
 			if(!ScxmlFile.LPSCR_SUFFIX.equals(suffix) && !ScxmlFile.SCXML_SUFFIX.equals(suffix))	{
 				filename = filename + '.' + ScxmlFile.LPSCR_SUFFIX;
@@ -279,7 +321,7 @@ public class ScxmlFile {
 		Unmarshaller unmarshaller = getScxmlUnmarshaller();
 		ScxmlScxmlType scxml;
 		try {
-			scxml = (ScxmlScxmlType)unmarshaller.unmarshal(file);
+			scxml = ((JAXBElement<ScxmlScxmlType>)unmarshaller.unmarshal(file)).getValue();
 		} catch (UnmarshalException e) {
 			throw new CommandException("'" + file.getAbsolutePath() + "' is not a valid SCXML file.", e);
 		} catch (JAXBException e) {
@@ -299,7 +341,10 @@ public class ScxmlFile {
 		Unmarshaller unmarshaller = getScxmlUnmarshaller();
 		ScxmlScxmlType scxml;
 		try {
-			scxml = (ScxmlScxmlType)unmarshaller.unmarshal(new StreamSource( new StringReader( scxmlDocument ) ));
+			scxml = (
+						(JAXBElement<ScxmlScxmlType>)unmarshaller.unmarshal(
+							new StreamSource( new StringReader( scxmlDocument ) ))
+					).getValue();
 		} catch (UnmarshalException e) {
 			throw new CommandException("'" + filename + "' does not reference valid SCXML contents.", e);
 		} catch (JAXBException e) {
@@ -377,6 +422,7 @@ public class ScxmlFile {
 		try	{	
 			marshaller.marshal(new ObjectFactory().createScxml(scxml), fileOutputStream);
 		} catch (MarshalException e) {
+			e.printStackTrace();
 			throw new CommandException("BUG: DOM failed marshalling: '" + e.getMessage() + "'.", e);
 		} catch (JAXBException e) {
 			throw new CommandException("BUG: Could not marshal SCXML DOM.", e);
@@ -433,5 +479,13 @@ public class ScxmlFile {
 			throw new CommandException("BUG: Could not marshal SCXML DOM to string.", e);
 		}
 		return ret.toString();
+	}
+
+	// Constructor helper
+	private void setFilename(String filename) {
+		assert filename != null && scxml != null;
+		assert LPSCR_SUFFIX.equals(Files.getFileExtension(filename)) || SCXML_SUFFIX.equals(Files.getFileExtension(filename)); 
+		this.filenameWithSuffix = filename;
+		this.filenameBase = Files.getNameWithoutExtension(filename);
 	}
 }

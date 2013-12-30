@@ -46,11 +46,6 @@
     </dependency>
     <dependency>
     	<groupId>alice.tuprolog</groupId>
-    	<artifactId>2p</artifactId>
-    	<version>2.7.2</version>
-    </dependency>
-    <dependency>
-    	<groupId>alice.tuprolog</groupId>
     	<artifactId>tuprolog</artifactId>
     	<version>2.7.2</version>
     </dependency>
