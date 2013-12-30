@@ -10,6 +10,7 @@ import java.util.List;
 
 import alice.tuprolog.InvalidTermException;
 import alice.tuprolog.Parser;
+import alice.tuprolog.Struct;
 import alice.tuprolog.Term;
 
 public class ClingoSolver {
@@ -46,8 +47,17 @@ public class ClingoSolver {
 		StringBuilder ret = new StringBuilder(engineCode);
 		// Then, add the SCXML document from state
 		List<Term> terms = state.getScxmlFile().getScxmlProlog();
-		for(Term term : terms)
-			ret.append("input(").append(term.toUnquotedString()).append(").\n");
+		for(Term term : terms)	{
+			// TODO: This is unfortunate.  I dont allow parent(top_state,X) terms in clingo input
+			// (it confuses the engine) but I need them in the output (I use them to find the
+			// top-level states).  Clingo-steps therefore include the parent(top_state,X) terms
+			// so I filter them here.  I should either filter them from clingo output and change
+			// the top-level-state-finder or change the engine to support them.  Both options
+			// have weird issues.
+			if((!(term instanceof Struct)) || (!((Struct)term).getName().equals(ScxmlPrologData.PARENT_STR)) ||
+					(!((Struct)term).getArg(0).toUnquotedString().equals(ScxmlPrologData.TOP_STATE_STR)))
+				ret.append("input(").append(term.toUnquotedString()).append(").\n");
+		}
 		// Then add the commands
 		ret.append(command.toString());
 		return ret.toString();
