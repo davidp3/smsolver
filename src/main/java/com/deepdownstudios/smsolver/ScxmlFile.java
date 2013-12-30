@@ -317,6 +317,7 @@ public class ScxmlFile {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private static ScxmlFile loadScxml(File file) throws CommandException {
 		Unmarshaller unmarshaller = getScxmlUnmarshaller();
 		ScxmlScxmlType scxml;
@@ -337,14 +338,13 @@ public class ScxmlFile {
 	 * @return				The new state
 	 * @throws CommandException
 	 */
+	@SuppressWarnings("unchecked")
 	private static ScxmlFile loadScxml(String filename, String scxmlDocument) throws CommandException {
 		Unmarshaller unmarshaller = getScxmlUnmarshaller();
 		ScxmlScxmlType scxml;
 		try {
-			scxml = (
-						(JAXBElement<ScxmlScxmlType>)unmarshaller.unmarshal(
-							new StreamSource( new StringReader( scxmlDocument ) ))
-					).getValue();
+			scxml = ((JAXBElement<ScxmlScxmlType>)unmarshaller.unmarshal(
+							new StreamSource( new StringReader( scxmlDocument ) ))).getValue();
 		} catch (UnmarshalException e) {
 			throw new CommandException("'" + filename + "' does not reference valid SCXML contents.", e);
 		} catch (JAXBException e) {

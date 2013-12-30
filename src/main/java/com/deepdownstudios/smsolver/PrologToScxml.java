@@ -53,7 +53,6 @@ public class PrologToScxml {
 				clauses.add(new Struct(CLAUSE_FUNCTOR_STR, term, TRUE_ATOM));
 			}
 			theory = new Theory(new Struct(clauses.toArray(new Term[0])));
-			System.err.println(theory.toString());
 			prolog.setTheory(theory);
 		} catch (InvalidTheoryException e) {
 			throw new CommandException("BUG: Could not make Prolog theory from the Prolog terms.", e);
@@ -135,7 +134,6 @@ public class PrologToScxml {
 	
 	private ScxmlStateType simple(final Prolog prolog, Term stateName) throws CommandException {
 		final ScxmlStateType newState = new ScxmlStateType();
-		System.err.println("simple: " + stateName.toUnquotedString());
 		newState.setId(stateName.toUnquotedString());
 		
 		// substates
@@ -193,7 +191,6 @@ public class PrologToScxml {
 
 	private ScxmlParallelType parallel(final Prolog prolog, Term stateName) throws CommandException {
 		final ScxmlParallelType newState = new ScxmlParallelType();
-		System.err.println("parallel: '" + stateName.toUnquotedString() + "'");
 		newState.setId(stateName.toUnquotedString());
 		
 		// substates
@@ -252,7 +249,6 @@ public class PrologToScxml {
 	
 	private ScxmlHistoryType historyHelper(final Prolog prolog, Term stateName) throws CommandException {
 		final ScxmlHistoryType newState = new ScxmlHistoryType();
-		System.err.println("history: " + stateName.toUnquotedString());
 		newState.setId(stateName.toUnquotedString());
 		
 		// transitions
@@ -278,7 +274,6 @@ public class PrologToScxml {
 
 	private ScxmlFinalType finalState(final Prolog prolog, Term stateName) throws CommandException {
 		final ScxmlFinalType newState = new ScxmlFinalType();
-		System.err.println("final: " + stateName.toUnquotedString());
 		newState.setId(stateName.toUnquotedString());
 		
 		// onEntry property
