@@ -1,4 +1,6 @@
-Converts an .lpscr (Logic Programming State-Chart Resource) to a .scxml (the UML state-chart format) file.  Permits interactive development of the .lpscr file via a simple command language.  Posts updates over POSIX or WebSocket connection for use with my SCXML debugger.
+Converts an .lpscr (Logic Programming State-Chart Resource) to a .scxml (the UML state-chart format) file.  
+Permits interactive development of the .lpscr file via a simple command language.  Posts updates over POSIX 
+or WebSocket connection for use with my SCXML debugger.
 
 Needs Clingo and TuProlog.
 
